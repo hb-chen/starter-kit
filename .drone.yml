@@ -12,7 +12,7 @@ workspace:
 
 trigger:
   branch:
-    - gateway
+    - master
 steps:
   - name: build
     image: golang:1.13-alpine
@@ -30,14 +30,14 @@ steps:
       - ./bin/linux_amd64/micro --version
     when:
       branch:
-        - gateway
+        - master
       event:
         - push
   - name: publish
     image: plugins/docker
     settings:
       auto_tag: true
-      dockerfile: gateway/Dockerfile
+      dockerfile: ./gateway/Dockerfile
       context: ./gateway
       repo: hbchen/starter-kit-gateway
       username:
@@ -46,7 +46,7 @@ steps:
         from_secret: docker_password
     when:
       branch:
-        - gateway
+        - master
       event:
         - push
   - name: deploy
@@ -67,7 +67,7 @@ steps:
       - helm template micro ./deploy/k8s/helm/starter-kit/charts/gateway --namespace starter-kit --set micro.host=starter-kit.k8s.hbchen.com --set image.tag=${DRONE_TAG=latest} --set image.pullPolicy=Always --set serviceAccount.create=true --set serviceAccount.name=micro-services | kubectl apply -f -
     when:
       branch:
-        - gateway
+        - master
       event:
         - push
 
@@ -87,7 +87,20 @@ trigger:
   branch:
     - console
 steps:
-  - name: build-api
+  - name: build-web-vue
+    image: node:10.16.3-alpine
+    commands:
+      - pwd
+      - cd console/web/vue
+      - npm install
+      - export VUE_APP_BASE_API=
+      - npm run build:prod
+    when:
+      branch:
+        - console
+      event:
+        - push
+  - name: build-all
     image: golang:1.13-alpine
     environment:
       GOOS: linux
@@ -101,6 +114,14 @@ steps:
       - cd console/api
       - go build -o ./bin/linux_amd64/console-api main.go plugin.go
       #- ./bin/linux_amd64/console-api --version
+      - cd ../web
+      - go version
+      - go build -o ./bin/linux_amd64/console-web main.go plugin.go
+      #- ./bin/linux_amd64/console-web --version
+      - cd ../account
+      - go version
+      - go build -o ./bin/linux_amd64/account-srv main.go plugin.go
+      #- ./bin/linux_amd64/account-srv --version
     when:
       branch:
         - console
@@ -110,7 +131,7 @@ steps:
     image: plugins/docker
     settings:
       auto_tag: true
-      dockerfile: console/api/Dockerfile
+      dockerfile: ./console/api/Dockerfile
       context: ./console/api
       repo: hbchen/starter-kit-console-api
       username:
@@ -138,38 +159,6 @@ steps:
       - kubectl config set-context default --cluster=k8s --user=k8s-admin
       - kubectl config use-context default
       - helm template micro ./deploy/k8s/helm/starter-kit/charts/service --namespace starter-kit --set nameOverride=console-api --set image.repository=hbchen/starter-kit-console-api --set image.tag=${DRONE_TAG=latest} --set image.pullPolicy=Always --set serviceAccount.create=true --set serviceAccount.name=micro-services | kubectl apply -f -
-    when:
-      branch:
-        - console
-      event:
-        - push
-  - name: build-web-vue
-    image: node:10.16.3-alpine
-    commands:
-      - pwd
-      - cd console/web/vue
-      - npm install
-      - export VUE_APP_BASE_API=
-      - npm run build:prod
-    when:
-      branch:
-        - console
-      event:
-        - push
-  - name: build-web
-    image: golang:1.13-alpine
-    environment:
-      GOOS: linux
-      GOARCH: amd64
-      CGO_ENABLED: 0
-      GOPROXY: https://mirrors.aliyun.com/goproxy/
-      GOSUMDB: off
-    commands:
-      - pwd
-      - cd console/web
-      - go version
-      - go build -o ./bin/linux_amd64/console-web main.go plugin.go
-      #- ./bin/linux_amd64/console-web --version
     when:
       branch:
         - console
@@ -207,25 +196,6 @@ steps:
       - kubectl config set-context default --cluster=k8s --user=k8s-admin
       - kubectl config use-context default
       - helm template micro ./deploy/k8s/helm/starter-kit/charts/service --namespace starter-kit --set nameOverride=console-web --set image.repository=hbchen/starter-kit-console-web --set image.tag=${DRONE_TAG=latest} --set image.pullPolicy=Always --set serviceAccount.create=true --set serviceAccount.name=micro-services | kubectl apply -f -
-    when:
-      branch:
-        - console
-      event:
-        - push
-  - name: build-account
-    image: golang:1.13-alpine
-    environment:
-      GOOS: linux
-      GOARCH: amd64
-      CGO_ENABLED: 0
-      GOPROXY: https://mirrors.aliyun.com/goproxy/
-      GOSUMDB: off
-    commands:
-      - pwd
-      - cd console/account
-      - go version
-      - go build -o ./bin/linux_amd64/account-srv main.go plugin.go
-      #- ./bin/linux_amd64/account-srv --version
     when:
       branch:
         - console
