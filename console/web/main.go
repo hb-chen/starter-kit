@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hb-go/micro-plugins/web"
+	"github.com/hb-go/micro-plugins/v2/web"
 	"github.com/micro-in-cn/x-gateway/plugin/opentracing"
-	"github.com/micro/go-micro/api"
-	"github.com/micro/go-micro/util/log"
+	"github.com/micro/go-micro/v2/api"
+	"github.com/micro/go-micro/v2/util/log"
 
 	"github.com/micro-in-cn/starter-kit/console/web/beego"
 	"github.com/micro-in-cn/starter-kit/console/web/echo"
@@ -35,7 +35,7 @@ func main() {
 	}
 
 	// 链路追踪
-	t, closer, err := tracer.NewJaegerTracer("go.micro.web.console", "127.0.0.1:6831")
+	t, closer, err := tracer.NewJaegerTracer("go.micro.api.console", "127.0.0.1:6831")
 	if err != nil {
 		log.Fatalf("opentracing tracer create error:%v", err)
 	}

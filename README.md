@@ -1,87 +1,159 @@
-# Micro 快速开发工具包*项目进行中*
+# Micro 快速开发工具包
 
-本仓库旨在提供面向Go-Micro生产环境的快速开发包。项目结合维护者们十余年的工作经验，不同领域的实战沉淀，一切为了缩短大家的选型、开发周期。
+> *项目进行中*
+
+本仓库旨在提供面向Go-Micro生产环境的快速开发包。
 
 ## 目录
 
-- [快速开始](#快速开始)
-- [目标](#目标)
+- 快速开始示例
+    - [控制台示例](/console#目录)
+        - 以最常见的登录流程为例，实现一个场景简单，但包含微服务各种治理能力的示例
+    - [Hipster Shop示例](/hipstershop)
+        - 参考[GoogleCloudPlatform/microservices-demo](https://github.com/GoogleCloudPlatform/microservices-demo/)实现一个业务场景比较复杂的微服务应用
 - [架构设计](#架构设计)
-- [部署](#部署)
+- [目录结构](#目录结构)
+- [目标功能](#目标功能)
+- [开发环境](#开发环境)
+- [部署环境](#部署环境)
+- [参与贡献](#参与贡献)
 
-## 快速开始
+## 架构设计
 
-### Go环境
-`go 1.13`
+### 系统架构图
+<img src="/doc/img/architecture.png" width="50%">
+
+### 业务架构图
+
+**[Console示例](/console)**
+
+<img src="/doc/img/console-design.png" width="50%">
+
+- [Hipster Shop示例](/hipstershop)
+    - 参考[GoogleCloudPlatform/microservices-demo](https://github.com/GoogleCloudPlatform/microservices-demo/)
+
+**领域模型&整洁架构参考**
+- [Clean Architecture in go](https://medium.com/@hatajoe/clean-architecture-in-go-4030f11ec1b1)
+- [基于 DDD 的微服务设计和开发实战](https://www.infoq.cn/article/s_LFUlU6ZQODd030RbH9)
+- [当中台遇上 DDD，我们该如何设计微服务？](https://www.infoq.cn/article/7QgXyp4Jh3-5Pk6LydWw)
+
+## 目录结构
 
 ```bash
-export GOSUMDB=off
-export GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
+├── console             控制台示例
+│   ├── account         go.micro.srv.account，Account服务
+│   │   ├── domain              领域
+│   │   │   ├── model           模型
+│   │   │   ├── repository      存储接口
+│   │   │   │   └── persistence ①存储接口实现   
+│   │   │   └── service         领域服务
+│   │   ├── interface           接口
+│   │   │   ├── handler         micro handler接口
+│   │   │   └── persistence     ②存储接口实现
+│   │   ├── registry            依赖注入，根据使用习惯，一般Go中不怎么喜欢这种方式
+│   │   └── usecase             应用用例
+│   │       ├── event           消息事件
+│   │       └── service         应用服务
+│   ├── api             go.micro.api.console，API服务
+│   ├── pb              服务协议统一.proto
+│   └── web             go.micro.api.console，Web服务，集成gin、echo、iris等web框架
+├── deploy              部署
+│   ├── docker
+│   └── k8s
+├── doc                 文档资源
+├── gateway             网关，自定义micro
+└── pkg                 公共资源包
 ```
 
-### 运行网关
+## 目标功能
 
-`micro api`[网关](gateway) 
-
-```bash
-$ cd gateway
-
-# 编译
-$ make build
-
-# API网关(二选一)
-$ make run_api                                  # 默认mdns + http
-$ make run_api registry=etcd transport=tcp      # 使用etcd + tcp
-```
-
-### 运行服务
-- Web应用
-	- `console/web`控制台
-- 聚合API
-	- `console/api`控制台
+- 自定义[micro网关](gateway)
+	- [x] `JWT`认证
+	- [x] `Casbin`鉴权
+	- [x] Tracing
+	- [ ] RequestID
+	- [x] Metrics
+	- [ ] Access Log
+	- ...
+- API服务
+    - 网关使用默认处理器(`handler=meta`)，聚合服务通过`Endpoint`定义路由规则，实现统一网关管理`rpc`和`http`类型的聚合服务
+        - *注:`go-micro/web`服务注册不支持`Endpoint`定义，需要自定义`web.Service`([实现参考](https://github.com/hb-go/micro-plugins/tree/master/web))，[issue#1097](https://github.com/micro/go-micro/issues/1097)*
+	- [x] api
+    - [x] rpc
+    - proxy/http/web
+        - [x] [静态资源](/console/web/statik)
+            - *前后端分离场景将静态资源独立更好，但不排除使用Web模板框架的应用加入微服务体系，尤其在已有单体逐步拆分的演进过程中*
+        - [x] [echo](/console/web/echo)
+        - [x] [gin](/console/web/gin)
+        - [x] [iris](/console/web/iris)
+        - [x] [beego](/console/web/beego)
+    - API文档
+        - [x] swagger
+            - *使用[grpc-ecosystem/grpc-gateway](https://github.com/grpc-ecosystem/grpc-gateway)的`protoc-gen-swagger`生成swagger文档，适用于API`handler=rpc`的模式*
+            - [示例](/console#Swagger文档生成)
+- 配置中心
+    - [ ] XConf
+- 前后端分离`console`
+	- [x] [PanJiaChen/vue-element-admin](https://github.com/PanJiaChen/vue-element-admin)
+	    - [示例](/console/web/vue)
+	- [ ] [tookit/vue-material-admin](https://github.com/tookit/vue-material-admin) 
+	- [ ] [view-design/iview-admin](https://github.com/view-design/iview-admin)
+- 参数验证
+	- [x] [protoc-gen-validate](https://github.com/envoyproxy/protoc-gen-validate)，适用于API`handler=rpc`的模式
+	    - 规则配置[account.proto](/console/pb/api/account.proto#L21)
+	    - 参数验证[account.go](/console/api/handler/account.go#L26)
+- 领域驱动
+	- [x] 整洁架构
+	    - 示例[console/account](/console/account)
+- ORM
+	- [x] gorm
+	    - [示例](/console/account/domain/repository/persistence/gorm)
+	- [x] xorm
+	    - [示例](/console/account/domain/repository/persistence/xorm)
+- 发布
+	- [x] 灰度
+	- [x] 蓝绿
+	- *注:由于micro默认的api和web网关均不支持服务筛选，需要自己改造，方案参考[微服务协作开发、灰度发布之流量染色](https://micro.mu/blog/cn/2019/12/09/go-micro-service-chain.html)*
+- 部署
+	- K8S
+		- [x] [helm](/deploy/k8s/helm)
+	- [x] Docker
+	    - 示例[console](/console/docker-compose.yml)
+- 安全
+- CICD
+	- [Drone](https://drone.io/) [README](/deploy/docker/drone)
+	    - [x] Go编译
+	    - [x] Docker镜像
+	    - [x] Kubernetes发布
+	- [ ] Jenkins
 - 基础服务
-	- `console/account`账户
-	
-> 注：`registry`、`transport`选择与网关一致
-```bash
-$ cd {指定服务目录}
+	- [ ] 日志收集
+		- `stdout`标准输出
+		- `log.file`日志文件
+		- [log-pilot](https://github.com/AliyunContainerService/log-pilot) 
+	- [ ] 监控告警
+		- Prometheus
+		- Grafana
+	- [ ] Tracing
+		- Jaeger
+- ...
 
-# 运行服务(二选一)
-$ make build run                                # 默认mdns + http
-$ make build run registry=etcd transport=tcp    # 使用etcd + tcp
-```
+## 开发环境
 
-### 服务测试
-> 注：`console API`由于有`认证`不能直接访问
-- gateway
-	- http://localhost:8080/
-	- http://localhost:8080/metrics
-- console
-	- http://localhost:8080/console
-	- Web API
-		- http://localhost:8080/console/v1/echo/
-		- http://localhost:8080/console/v1/gin/
-		- http://localhost:8080/console/v1/iris/
-	- API
-        - http://localhost:8080/account/login
-        - http://localhost:8080/account/info
-        - http://localhost:8080/account/logout
+*TODO*
+- 本地
+    - [x] [Docker Compose](/console#docker-compose启动)
+- 在线
+    - [x] CICD
+    - [x] Kubernetes
+    - 本地服务接入
+        - [ ] Network代理 + 流量染色
 
-### Makefile说明
-```bash
-$ make build                                    # 编译
-$ make run                                      # 运行
-$ make run registry=etcd transport=tcp          # 运行，指定registry、transport
+## 部署环境
 
-$ make build run                                # 编译&运行
-$ make build run registry=etcd transport=tcp    # 编译&运行，指定registry、transport
+[Kubernetes环境](/deploy/k8s)
 
-$ make vue statik                               # 前端编译，并打包statik.go文件
-
-$ make docker tag=xxx/xxx:v0.0.1
-```
-
-### 可选服务
+## 可选服务
 
 <details>
   <summary> Jaeger </summary>
@@ -117,116 +189,7 @@ $ docker run --name grafana -d -p 3000:3000 grafana/grafana
 
 </details>
 
-## 目标
-
-- 自定义[micro网关](gateway)
-	- [x] `JWT`认证
-	- [x] `Casbin`鉴权
-	- [x] Tracing
-	- [ ] RequestID
-	- [x] Metrics
-	- [ ] Access Log
-	- ...
-- 网关选择
-	- micro api
-		- [x] api
-		- [x] rpc
-		- proxy/http/web
-		    - 参考micro web的
-	- micro web
-		- [x] [echo](/app/console/web/echo)
-		- [x] [gin](/app/console/web/gin)
-		- [x] [iris](/app/console/web/iris)
-		- [x] [beego](/app/console/web/beego)
-- 配置中心
-- 前后端分离`console`
-	- [x] [PanJiaChen/vue-element-admin](https://github.com/PanJiaChen/vue-element-admin)
-	- [ ] [tookit/vue-material-admin](https://github.com/tookit/vue-material-admin) 
-	- [ ] [view-design/iview-admin](https://github.com/view-design/iview-admin)
-- 参数验证
-	- [x] [protoc-gen-validate](https://github.com/envoyproxy/protoc-gen-validate)，适用于API`handler=rpc`的模式
-	    - 规则配置[account.proto](/app/console/api/proto/account/account.proto#L21)
-	    - 参数验证[account.go](/app/console/api/handler/account.go#L26)
-- 领域驱动
-	- [x] 整洁架构
-- ORM
-	- [x] gorm
-	- [x] xorm
-- 发布
-	- [x] 灰度
-	- [x] 蓝绿
-	- *注:由于micro默认的api和web网关均不支持服务筛选，需要自己改造，方案参考[微服务协作开发、灰度发布之流量染色](https://micro.mu/blog/cn/2019/12/09/go-micro-service-chain.html)*
-- 部署
-	- [ ] K8S
-		- [x] [helm](/deploy/k8s/helm)
-	- [ ] Docker
-- 安全
-- CICD
-	- [x] [Drone](https://drone.io/) [README](/deploy/docker/drone)
-	- [ ] Jenkins
-- 基础服务
-	- [ ] 日志收集
-		- `stdout`标准输出
-		- `log.file`日志文件
-		- [log-pilot](https://github.com/AliyunContainerService/log-pilot) 
-	- [ ] 监控告警
-		- Prometheus
-		- Grafana
-	- [ ] Tracing
-		- Jaeger
-- ...
-
-## 架构设计
-
-### 目录结构
-
-```bash
-├── console             控制台示例
-│   ├── account         go.micro.srv.account，Account服务
-│   │   ├── domain              领域
-│   │   │   ├── model           模型
-│   │   │   ├── repository      存储接口
-│   │   │   │   └── persistence ①存储接口实现   
-│   │   │   └── service         领域服务
-│   │   ├── interface           接口
-│   │   │   ├── handler         micro handler接口
-│   │   │   └── persistence     ②存储接口实现
-│   │   ├── registry            依赖注入，根据使用习惯，一般Go中不怎么喜欢这种方式
-│   │   └── usecase             应用用例
-│   │       ├── event           消息事件
-│   │       └── service         应用服务
-│   ├── api             go.micro.api.console，API服务
-│   ├── pb              服务协议统一.proto
-│   └── web             go.micro.api.console，Web服务，集成gin、echo、iris等web框架
-├── deploy              部署
-│   ├── docker
-│   └── k8s
-├── doc                 文档资源
-├── gateway             网关，自定义micro
-└── pkg                 公共资源包
-```
-
-### 系统架构图
-<img src="/doc/img/architecture.png" width="50%">
-
-### 业务架构图
-*TODO*
-
-#### [Console示例](/console)
-
-#### [Hipster Shop示例](/hipstershop)
-> [GoogleCloudPlatform/microservices-demo](https://github.com/GoogleCloudPlatform/microservices-demo/)
-
-**领域模型&整洁架构参考**
-- [Clean Architecture in go](https://medium.com/@hatajoe/clean-architecture-in-go-4030f11ec1b1)
-- [基于 DDD 的微服务设计和开发实战](https://www.infoq.cn/article/s_LFUlU6ZQODd030RbH9)
-- [当中台遇上 DDD，我们该如何设计微服务？](https://www.infoq.cn/article/7QgXyp4Jh3-5Pk6LydWw)
-
-## 部署
-
-[Kubernetes环境](/deploy/k8s)
-
-## 贡献
+## 参与贡献
 
 ### 代码格式
 - IDE IDEA/Goland，`Go->imports` 设置
