@@ -13,10 +13,26 @@ workspace:
 trigger:
   branch:
     - gateway
+
+volumes:
+  - name: cache
+    host:
+      path: /tmp/drone_cache
+
 steps:
+  - name: restore-cache
+    image: drillster/drone-volume-cache
+    settings:
+      restore: true
+      mount:
+        - ./_gopath
+    volumes:
+      - name: cache
+        path: /cache
   - name: build
     image: golang:1.13-alpine
     environment:
+      GOPATH: /drone/src/github.com/micro-in-cn/starter-kit/_gopath
       GOOS: linux
       GOARCH: amd64
       CGO_ENABLED: 0
@@ -33,6 +49,15 @@ steps:
         - gateway
       event:
         - push
+  - name: rebuild-cache
+    image: drillster/drone-volume-cache
+    settings:
+      rebuild: true
+      mount:
+        - ./_gopath
+    volumes:
+      - name: cache
+        path: /cache
   - name: publish
     image: plugins/docker
     settings:
@@ -87,24 +112,43 @@ workspace:
 trigger:
   branch:
     - console
+
+volumes:
+  - name: cache
+    host:
+      path: /tmp/drone_cache
+
 steps:
 # vue build太慢暂时不把web放在里面
-#  - name: build-web-vue
-#    image: node:10.16.3-alpine
-#    commands:
-#      - pwd
-#      - cd console/web/vue
-#      - npm install
-#      - export VUE_APP_BASE_API=
-#      - npm run build:prod
-#    when:
-#      branch:
-#        - console
-#      event:
-#        - push
+  - name: restore-cache
+    image: drillster/drone-volume-cache
+    settings:
+      restore: true
+      mount:
+        - ./.npm-cache
+        - ./console/web/vue/node_modules
+        - ./_gopath
+    volumes:
+      - name: cache
+        path: /cache
+  - name: build-web-vue
+    image: node:10.16.3-alpine
+    commands:
+      - pwd
+      - cd console/web/vue
+      - npm config set cache ./.npm-cache --global
+      - npm install
+      - export VUE_APP_BASE_API=
+      - npm run build:prod
+    when:
+      branch:
+        - console
+      event:
+        - push
   - name: build-all
     image: golang:1.13-alpine
     environment:
+      GOPATH: /drone/src/github.com/micro-in-cn/starter-kit/_gopath
       GOOS: linux
       GOARCH: amd64
       CGO_ENABLED: 0
@@ -116,9 +160,9 @@ steps:
       - cd console/api
       - go build -o ./bin/linux_amd64/console-api main.go plugin.go
       #- ./bin/linux_amd64/console-api --version
-#      - cd ../web
-#      - go version
-#      - go build -o ./bin/linux_amd64/console-web main.go plugin.go
+      - cd ../web
+      - go version
+      - go build -o ./bin/linux_amd64/console-web main.go plugin.go
       #- ./bin/linux_amd64/console-web --version
       - cd ../account
       - go version
@@ -129,6 +173,17 @@ steps:
         - console
       event:
         - push
+  - name: rebuild-cache
+    image: drillster/drone-volume-cache
+    settings:
+      rebuild: true
+      mount:
+        - ./.npm-cache
+        - ./console/web/vue/node_modules
+        - ./_gopath
+    volumes:
+      - name: cache
+        path: /cache
   - name: publish-api
     image: plugins/docker
     settings:
